@@ -1,0 +1,65 @@
+steps:
+  # Step 1: Debugging - List all the files
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args: 
+      - '-c'
+      - |
+        echo "Checking workspace files...."
+        ls -lR /workspace
+
+  # Step 2: Authenticate Docker with Artifact Registry
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: ['auth', 'configure-docker', 'us-central1-docker.pkg.dev']
+
+  # Step 2.5: Ensure Go module is initialized properly and generates go.sum
+  - name: 'golang:1.21'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cd /workspace/amazingapp/blue
+        if [[ ! -f go.mod ]]; then
+          echo "🚀 Initializing Go module..."
+          go mod init amazingapp
+        fi
+        echo "✅ Running go mod tidy..."
+        go mod tidy || exit 1
+        touch go.sum  # Ensure go.sum exists
+        echo "✅ go.sum file contents:"
+        cat go.sum || echo "⚠️ go.sum is empty"
+
+  # Step 3: Build the Docker image using blue/ as the build context
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/cloudrun-demo/amazingapp:$COMMIT_SHA', '-f', '/workspace/amazingapp/blue/Dockerfile', '/workspace/amazingapp/blue']
+
+  # - name: 'gcr.io/cloud-builders/docker'
+  #   args: ['build', '-t', 'us-central1-docker.pkg.dev/integrated-bit-451304-m9/amazingapp-repo/amazingapp:$COMMIT_SHA', '-f', '/workspace/amazingapp/blue/Dockerfile', '/workspace/amazingapp/blue']
+
+
+  # Step 4: Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/cloudrun-demo/amazingapp:$COMMIT_SHA']
+  
+  # - name: 'gcr.io/cloud-builders/docker'
+  #   args: ['push', 'us-central1-docker.pkg.dev/integrated-bit-451304-m9/amazingapp-repo/amazingapp:$COMMIT_SHA']
+
+  # Step 5: Deploy the Docker image to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: 
+      - 'run'
+      - 'deploy'
+      - 'amazingapp'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloudrun-demo/amazingapp:$COMMIT_SHA'
+      - '--region'
+      - 'us-east1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/cloudrun-demo/amazingapp:$COMMIT_SHA
+
+
+# logbucket: "gs://725837802412-global-cloudbuild-logs"#
