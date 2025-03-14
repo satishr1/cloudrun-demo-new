@@ -62,4 +62,4 @@ images:
   - us-central1-docker.pkg.dev/$PROJECT_ID/cloudrun-demo/amazingapp:$COMMIT_SHA
 
 
-logsbucket: "gs://cloudbuild-logs-new"
+logsBucket: "gs://cloudbuild-logs-new"
